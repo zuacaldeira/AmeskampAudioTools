@@ -4,6 +4,8 @@ A web app for trimming long silences from audio files. Upload a file, configure 
 
 **Live at [ameskamp.zuacaldeira.com](https://ameskamp.zuacaldeira.com)**
 
+![Screenshot](docs/screenshot.png)
+
 ## Features
 
 - Drag-and-drop audio upload (WAV, MP3, FLAC, OGG, AAC, up to 500 MB)
