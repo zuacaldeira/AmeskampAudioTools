@@ -60,6 +60,10 @@
   /* Header */
   .header {
     margin-bottom: 48px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
   }
 
   .header h1 {
@@ -71,6 +75,36 @@
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  .donate-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+
+  .donate-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  .donate-btn svg {
+    width: 16px;
+    height: 16px;
   }
 
   .header h1 .icon {
@@ -625,11 +659,17 @@
 <body>
 <div class="app">
   <div class="header">
-    <h1>
-      <span class="icon">&#9118;</span>
-      Silence Trimmer
-    </h1>
-    <p>Upload an audio file and trim long silences down to size.</p>
+    <div>
+      <h1>
+        <span class="icon">&#9118;</span>
+        Silence Trimmer
+      </h1>
+      <p>Upload an audio file and trim long silences down to size.</p>
+    </div>
+    <a href="https://paypal.me/zuacaldeira" target="_blank" rel="noopener" class="donate-btn">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+      Donate
+    </a>
   </div>
 
   <!-- Drop Zone -->
