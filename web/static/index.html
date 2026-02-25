@@ -77,7 +77,7 @@
     gap: 12px;
   }
 
-  .donate-btn {
+  .share-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -94,15 +94,16 @@
     white-space: nowrap;
     flex-shrink: 0;
     margin-top: 4px;
+    cursor: pointer;
   }
 
-  .donate-btn:hover {
+  .share-btn:hover {
     border-color: var(--accent);
     color: var(--accent);
     background: var(--accent-glow);
   }
 
-  .donate-btn svg {
+  .share-btn svg {
     width: 16px;
     height: 16px;
   }
@@ -666,10 +667,10 @@
       </h1>
       <p>Upload an audio file and trim long silences down to size.</p>
     </div>
-    <a href="https://paypal.me/zuacaldeira" target="_blank" rel="noopener" class="donate-btn">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-      Donate
-    </a>
+    <button onclick="shareApp()" class="share-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      Share
+    </button>
   </div>
 
   <!-- Drop Zone -->
@@ -823,6 +824,22 @@ const results = $('results');
 const errorMsg = $('errorMsg');
 
 let selectedFile = null;
+
+// Share
+function shareApp() {
+  const url = 'https://ameskamp.zuacaldeira.com';
+  const text = 'Silence Trimmer — trim long silences from audio files';
+  if (navigator.share) {
+    navigator.share({ title: 'Silence Trimmer', text, url });
+  } else {
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.querySelector('.share-btn');
+      const orig = btn.innerHTML;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+      setTimeout(() => { btn.innerHTML = orig; }, 2000);
+    });
+  }
+}
 
 // Format
 function formatTime(ms) {
