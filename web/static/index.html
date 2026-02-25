@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Silence Trimmer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-card: #16161f;
+    --bg-elevated: #1c1c28;
+    --border: #2a2a3a;
+    --border-active: #4a4a6a;
+    --text-primary: #e8e8f0;
+    --text-secondary: #8888a8;
+    --text-muted: #555570;
+    --accent: #6ee7b7;
+    --accent-dim: #2d6b54;
+    --accent-glow: rgba(110, 231, 183, 0.15);
+    --danger: #f87171;
+    --warning: #fbbf24;
+    --waveform-bg: #0d0d14;
+    --silence: #f59e0b;
+    --silence-dim: rgba(245, 158, 11, 0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(110, 231, 183, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(110, 231, 183, 0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* Header */
+  .header {
+    margin-bottom: 48px;
+  }
+
+  .header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header h1 .icon {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--accent), #34d399);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #0a0a0f;
+    box-shadow: 0 0 24px var(--accent-glow);
+  }
+
+  .header p {
+    margin-top: 8px;
+    color: var(--text-secondary);
+    font-size: 15px;
+    padding-left: 48px;
+  }
+
+  /* Drop zone */
+  .dropzone {
+    position: relative;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 56px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--bg-secondary);
+    margin-bottom: 32px;
+  }
+
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  .dropzone.drag-over {
+    transform: scale(1.01);
+  }
+
+  .dropzone.has-file {
+    border-color: var(--accent-dim);
+    border-style: solid;
+    padding: 24px 32px;
+  }
+
+  .dropzone-prompt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .dropzone-prompt svg {
+    width: 48px;
+    height: 48px;
+    color: var(--text-muted);
+    transition: color 0.3s;
+  }
+
+  .dropzone:hover .dropzone-prompt svg {
+    color: var(--accent);
+  }
+
+  .dropzone-prompt .main-text {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .dropzone-prompt .sub-text {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .dropzone input[type="file"] {
+    display: none;
+  }
+
+  /* File info bar */
+  .file-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+  }
+
+  .file-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--accent-glow);
+    border: 1px solid var(--accent-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .file-icon svg {
+    width: 22px;
+    height: 22px;
+    color: var(--accent);
+  }
+
+  .file-details {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .file-details .name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .file-details .meta {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .file-remove {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .file-remove:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: rgba(248, 113, 113, 0.1);
+  }
+
+  /* Settings panel */
+  .settings {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 32px;
+  }
+
+  .settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .settings-header h2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-secondary);
+  }
+
+  .settings-toggle {
+    font-size: 13px;
+    color: var(--accent);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: 'JetBrains Mono', monospace;
+    transition: opacity 0.2s;
+  }
+
+  .settings-toggle:hover { opacity: 0.8; }
+
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 600px) {
+    .settings-grid { grid-template-columns: 1fr; }
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .field label .unit {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .field input, .field select {
+    height: 42px;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+  }
+
+  .field select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238888a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+
+  .field .hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  .advanced-fields {
+    grid-column: 1 / -1;
+    display: none;
+    gap: 20px;
+  }
+
+  .advanced-fields.show {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 600px) {
+    .advanced-fields.show { grid-template-columns: 1fr; }
+  }
+
+  /* Process button */
+  .process-btn {
+    width: 100%;
+    height: 54px;
+    border: none;
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #059669, #34d399);
+    color: #0a0a0f;
+    box-shadow: 0 4px 24px rgba(110, 231, 183, 0.2);
+    margin-bottom: 32px;
+  }
+
+  .process-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 32px rgba(110, 231, 183, 0.3);
+  }
+
+  .process-btn:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .process-btn:disabled {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .process-btn.processing {
+    background: var(--bg-elevated);
+    color: var(--accent);
+    box-shadow: none;
+  }
+
+  /* Progress bar inside button */
+  .process-btn .progress-bar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  /* Results */
+  .results {
+    display: none;
+    animation: fadeUp 0.4s ease;
+  }
+
+  .results.show { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .results-card {
+    background: var(--bg-card);
+    border: 1px solid var(--accent-dim);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+
+  .results-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 600px) {
+    .stats-grid { grid-template-columns: 1fr; }
+  }
+
+  .stat {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .stat .label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 6px;
+  }
+
+  .stat .value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .stat .value.accent { color: var(--accent); }
+  .stat .value.warning { color: var(--warning); }
+
+  /* Duration comparison bar */
+  .duration-bar {
+    margin-bottom: 24px;
+  }
+
+  .duration-bar .bar-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .bar-track {
+    height: 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #34d399);
+    border-radius: 4px;
+    transition: width 0.8s ease;
+  }
+
+  /* Segments list */
+  .segments-title {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+  }
+
+  .segments-title svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.2s;
+  }
+
+  .segments-title.open svg {
+    transform: rotate(90deg);
+  }
+
+  .segments-list {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .segments-list.show { display: flex; }
+
+  .segment-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    border-left: 3px solid var(--border);
+  }
+
+  .segment-item.trimmed {
+    border-left-color: var(--accent);
+  }
+
+  .segment-item .seg-type {
+    color: var(--text-muted);
+    min-width: 60px;
+  }
+
+  .segment-item .seg-time {
+    color: var(--text-secondary);
+    flex: 1;
+  }
+
+  .segment-item .seg-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .segment-item .seg-badge.kept {
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+  }
+
+  .segment-item .seg-badge.cut {
+    color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  /* Download button */
+  .download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    height: 48px;
+    padding: 0 28px;
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    margin-top: 4px;
+  }
+
+  .download-btn:hover {
+    background: var(--accent-glow);
+    transform: translateY(-1px);
+  }
+
+  .download-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Error */
+  .error-msg {
+    display: none;
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-radius: 10px;
+    padding: 16px 20px;
+    color: var(--danger);
+    font-size: 14px;
+    margin-bottom: 24px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .error-msg.show { display: block; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-secondary); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>
+      <span class="icon">&#9118;</span>
+      Silence Trimmer
+    </h1>
+    <p>Upload an audio file and trim long silences down to size.</p>
+  </div>
+
+  <!-- Drop Zone -->
+  <div class="dropzone" id="dropzone">
+    <div class="dropzone-prompt" id="dropPrompt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span class="main-text">Drop audio file here or click to browse</span>
+      <span class="sub-text">WAV · MP3 · FLAC · OGG · AAC · up to 500 MB</span>
+    </div>
+    <div class="file-info" id="fileInfo" style="display:none">
+      <div class="file-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18V5l12-2v13"/>
+          <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+        </svg>
+      </div>
+      <div class="file-details">
+        <div class="name" id="fileName"></div>
+        <div class="meta" id="fileMeta"></div>
+      </div>
+      <button class="file-remove" id="fileRemove" title="Remove file">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <input type="file" id="fileInput" accept="audio/*,.wav,.mp3,.flac,.ogg,.aac,.m4a,.wma,.opus">
+  </div>
+
+  <!-- Settings -->
+  <div class="settings">
+    <div class="settings-header">
+      <h2>Settings</h2>
+      <button class="settings-toggle" id="advancedToggle">+ Advanced</button>
+    </div>
+    <div class="settings-grid">
+      <div class="field">
+        <label>Max Silence <span class="unit">ms</span></label>
+        <input type="number" id="maxSilence" value="1000" min="100" max="30000" step="100">
+        <span class="hint">Silence longer than this gets trimmed to this duration</span>
+      </div>
+      <div class="field">
+        <label>Silence Threshold <span class="unit">dBFS</span></label>
+        <input type="number" id="threshold" value="-40" min="-80" max="0" step="1">
+        <span class="hint">Audio quieter than this is considered silence</span>
+      </div>
+      <div class="advanced-fields" id="advancedFields">
+        <div class="field">
+          <label>Min Silence Length <span class="unit">ms</span></label>
+          <input type="number" id="minSilenceLen" value="100" min="10" max="5000" step="10">
+          <span class="hint">Ignore silence shorter than this</span>
+        </div>
+        <div class="field">
+          <label>Output Format</label>
+          <select id="outputFormat">
+            <option value="">Same as input</option>
+            <option value="wav">WAV</option>
+            <option value="mp3">MP3</option>
+            <option value="flac">FLAC</option>
+            <option value="ogg">OGG</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Bitrate <span class="unit">lossy only</span></label>
+          <select id="bitrate">
+            <option value="">Default</option>
+            <option value="128k">128 kbps</option>
+            <option value="192k">192 kbps</option>
+            <option value="256k">256 kbps</option>
+            <option value="320k">320 kbps</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Process Button -->
+  <button class="process-btn" id="processBtn" disabled>
+    <span id="btnText">Select a file to begin</span>
+    <div class="progress-bar" id="progressBar"></div>
+  </button>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="results-card">
+      <div class="results-title">Results</div>
+
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="label">Original</div>
+          <div class="value" id="statOriginal">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Trimmed</div>
+          <div class="value accent" id="statTrimmed">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Saved</div>
+          <div class="value warning" id="statSaved">—</div>
+        </div>
+      </div>
+
+      <div class="duration-bar">
+        <div class="bar-label">
+          <span>Duration comparison</span>
+          <span id="barPercent">—</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" id="barFill" style="width:100%"></div>
+        </div>
+      </div>
+
+      <div class="segments-title" id="segmentsToggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+        <span id="segmentsCount">Silence segments</span>
+      </div>
+      <div class="segments-list" id="segmentsList"></div>
+
+      <a class="download-btn" id="downloadBtn" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download trimmed file
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const dropzone = $('dropzone');
+const fileInput = $('fileInput');
+const dropPrompt = $('dropPrompt');
+const fileInfo = $('fileInfo');
+const processBtn = $('processBtn');
+const btnText = $('btnText');
+const progressBar = $('progressBar');
+const results = $('results');
+const errorMsg = $('errorMsg');
+
+let selectedFile = null;
+
+// Format
+function formatTime(ms) {
+  const s = ms / 1000;
+  const m = Math.floor(s / 60);
+  const sec = (s % 60).toFixed(1);
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// File handling
+function setFile(file) {
+  if (!file) return;
+  selectedFile = file;
+  dropPrompt.style.display = 'none';
+  fileInfo.style.display = 'flex';
+  $('fileName').textContent = file.name;
+  $('fileMeta').textContent = formatSize(file.size);
+  dropzone.classList.add('has-file');
+  processBtn.disabled = false;
+  btnText.textContent = 'Trim Silence';
+  results.classList.remove('show');
+  errorMsg.classList.remove('show');
+}
+
+function clearFile(e) {
+  if (e) e.stopPropagation();
+  selectedFile = null;
+  fileInput.value = '';
+  dropPrompt.style.display = 'flex';
+  fileInfo.style.display = 'none';
+  dropzone.classList.remove('has-file');
+  processBtn.disabled = true;
+  btnText.textContent = 'Select a file to begin';
+  results.classList.remove('show');
+  errorMsg.classList.remove('show');
+}
+
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { if (e.target.files[0]) setFile(e.target.files[0]); });
+$('fileRemove').addEventListener('click', clearFile);
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+// Advanced toggle
+$('advancedToggle').addEventListener('click', function() {
+  const fields = $('advancedFields');
+  const show = !fields.classList.contains('show');
+  fields.classList.toggle('show', show);
+  this.textContent = show ? '− Advanced' : '+ Advanced';
+});
+
+// Segments toggle
+$('segmentsToggle').addEventListener('click', function() {
+  this.classList.toggle('open');
+  $('segmentsList').classList.toggle('show');
+});
+
+// Process
+processBtn.addEventListener('click', async () => {
+  if (!selectedFile || processBtn.disabled) return;
+
+  errorMsg.classList.remove('show');
+  results.classList.remove('show');
+
+  processBtn.disabled = true;
+  processBtn.classList.add('processing');
+  btnText.textContent = 'Processing…';
+
+  // Animate progress bar indeterminately
+  let progress = 0;
+  const progressInterval = setInterval(() => {
+    progress = Math.min(progress + (90 - progress) * 0.05, 90);
+    progressBar.style.width = progress + '%';
+  }, 100);
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+  formData.append('threshold', $('threshold').value);
+  formData.append('max_silence', $('maxSilence').value);
+  formData.append('min_silence_len', $('minSilenceLen').value);
+  formData.append('format', $('outputFormat').value);
+  formData.append('bitrate', $('bitrate').value);
+
+  try {
+    const res = await fetch('/api/process', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    clearInterval(progressInterval);
+    progressBar.style.width = '100%';
+
+    if (!res.ok) {
+      throw new Error(data.error || 'Processing failed');
+    }
+
+    // Populate results
+    $('statOriginal').textContent = formatTime(data.original_duration_ms);
+    $('statTrimmed').textContent = formatTime(data.trimmed_duration_ms);
+    const savedMs = data.original_duration_ms - data.trimmed_duration_ms;
+    const savedPct = ((savedMs / data.original_duration_ms) * 100).toFixed(1);
+    $('statSaved').textContent = `${formatTime(savedMs)} (${savedPct}%)`;
+
+    const trimmedPct = ((data.trimmed_duration_ms / data.original_duration_ms) * 100).toFixed(1);
+    $('barPercent').textContent = `${trimmedPct}% of original`;
+    setTimeout(() => { $('barFill').style.width = trimmedPct + '%'; }, 50);
+
+    $('segmentsCount').textContent = `${data.silence_segments_found} silence segment${data.silence_segments_found !== 1 ? 's' : ''} found, ${data.silence_segments_trimmed} trimmed`;
+
+    // Segments list
+    const list = $('segmentsList');
+    list.innerHTML = '';
+    if (data.segments) {
+      data.segments.forEach(seg => {
+        const div = document.createElement('div');
+        div.className = 'segment-item' + (seg.trimmed ? ' trimmed' : '');
+        div.innerHTML = `
+          <span class="seg-type">${seg.type || 'gap'}</span>
+          <span class="seg-time">${formatTime(seg.start)} → ${formatTime(seg.end)} (${formatTime(seg.duration)})</span>
+          <span class="seg-badge ${seg.trimmed ? 'cut' : 'kept'}">${seg.trimmed ? 'trimmed' : 'kept'}</span>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    $('downloadBtn').href = `/api/download/${data.job_id}/${encodeURIComponent(data.output_filename)}`;
+    results.classList.add('show');
+
+  } catch (err) {
+    clearInterval(progressInterval);
+    errorMsg.textContent = err.message;
+    errorMsg.classList.add('show');
+  } finally {
+    setTimeout(() => { progressBar.style.width = '0%'; }, 400);
+    processBtn.disabled = false;
+    processBtn.classList.remove('processing');
+    btnText.textContent = 'Trim Silence';
+  }
+});
+</script>
+</body>
+</html>

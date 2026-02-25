@@ -1,0 +1,11 @@
+silence_trimmer.py
+*.pyc
+__pycache__
+.git
+.gitignore
+*.md
+certbot-data/
+nginx/
+docker-compose.yml
+Dockerfile
+.dockerignore
