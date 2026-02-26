@@ -1,4 +1,4 @@
-# Silence Trimmer
+# Ameskamp — Silence Trimmer
 
 A web app for trimming long silences from audio files. Upload a file, configure thresholds, and download the trimmed result.
 
