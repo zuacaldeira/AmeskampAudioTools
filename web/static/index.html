@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Silence Trimmer</title>
+<title>Ameskamp — Silence Trimmer</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -94,6 +94,21 @@
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  .header h1 .business-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #ffffff;
+  }
+
+  .header h1 .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .header-actions {
@@ -769,7 +784,10 @@
     <div>
       <h1>
         <span class="icon">&#9118;</span>
-        Silence Trimmer
+        <span class="brand">
+          <span class="business-name">Ameskamp</span>
+          Silence Trimmer
+        </span>
       </h1>
       <p>Upload an audio file and trim long silences down to size.</p>
     </div>
@@ -972,7 +990,7 @@ let selectedFile = null;
 
 // Share
 const shareUrl = 'https://ameskamp.zuacaldeira.com';
-const shareText = 'Silence Trimmer — trim long silences from audio files';
+const shareText = 'Ameskamp Silence Trimmer — trim long silences from audio files';
 
 function toggleShare(e) {
   e.stopPropagation();
