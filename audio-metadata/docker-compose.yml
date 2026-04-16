@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    container_name: audio-metadata-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5001:5001"
+    tmpfs:
+      - /tmp:size=1G
+    environment:
+      - TMPDIR=/tmp
