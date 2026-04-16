@@ -116,6 +116,30 @@ def _stringify(value):
     return str(value).strip() or None
 
 
+def _decode_bytes(data, max_len=200):
+    """Decode a bytes payload for display. Tries UTF-16 LE / UTF-8, falls back to hex."""
+    if not isinstance(data, (bytes, bytearray)):
+        return str(data)
+    # Heuristic: alternating-null pattern -> UTF-16 LE
+    odd_bytes = data[1::2]
+    if odd_bytes and odd_bytes.count(0) / len(odd_bytes) > 0.8:
+        try:
+            s = data.decode("utf-16-le").rstrip("\x00").strip()
+            if s and all(c.isprintable() or c.isspace() for c in s):
+                return s if len(s) <= max_len else s[:max_len] + "…"
+        except Exception:
+            pass
+    try:
+        s = data.decode("utf-8").rstrip("\x00").strip()
+        if s and all(c.isprintable() or c.isspace() for c in s):
+            return s if len(s) <= max_len else s[:max_len] + "…"
+    except Exception:
+        pass
+    preview = data[:16].hex()
+    suffix = "…" if len(data) > 16 else ""
+    return f"<{len(data)} bytes: {preview}{suffix}>"
+
+
 def extract_tags(audio):
     """Return a dict of normalized common tags across formats."""
     tags = {}
@@ -151,6 +175,18 @@ def extract_tags(audio):
             "TCOP": "copyright",
             "TSRC": "isrc",
             "TBPM": "bpm",
+            "TPUB": "publisher",
+            "TENC": "encoded_by",
+            "TSSE": "encoder",
+            "TEXT": "lyricist",
+            "TLAN": "language",
+            "TMED": "media",
+            "TMOO": "mood",
+            "TOAL": "original_album",
+            "TOPE": "original_artist",
+            "TOFN": "original_filename",
+            "TORY": "original_year",
+            "TKEY": "initial_key",
         }
         for frame_id, name in id3_map.items():
             if frame_id in easy and name not in tags:
@@ -188,6 +224,61 @@ def extract_tags(audio):
                 tags["discnumber"] = f"{disk[0]}/{disk[1]}" if disk[1] else str(disk[0])
 
     return {k: v for k, v in tags.items() if v}
+
+
+def extract_extended_tags(audio):
+    """Proprietary / format-specific frames beyond the common tag set.
+
+    Covers ID3 TXXX (user-defined text), PRIV (private), GEOB (embedded objects),
+    UFID (unique file IDs), WXXX (user URL), plus MP4 freeform atoms (``----:*``)
+    used by Apple/iTunes for custom metadata. Values are decoded best-effort;
+    binary blobs are rendered as hex previews.
+    """
+    out = {}
+    tags = getattr(audio, "tags", None)
+    if tags is None:
+        return out
+
+    if hasattr(tags, "getall"):
+        for frame in tags.getall("TXXX"):
+            desc = frame.desc or ""
+            key = f"TXXX:{desc}" if desc else "TXXX"
+            out[key] = "; ".join(str(t) for t in frame.text) or ""
+        for frame in tags.getall("PRIV"):
+            key = f"PRIV:{frame.owner}"
+            out[key] = _decode_bytes(frame.data)
+        for frame in tags.getall("GEOB"):
+            desc = frame.desc or "(no desc)"
+            parts = []
+            if frame.mime:
+                parts.append(frame.mime)
+            if frame.filename:
+                parts.append(f"filename={frame.filename}")
+            parts.append(f"{len(frame.data)} bytes")
+            out[f"GEOB:{desc}"] = ", ".join(parts)
+        for frame in tags.getall("UFID"):
+            out[f"UFID:{frame.owner}"] = _decode_bytes(frame.data)
+        for frame in tags.getall("WXXX"):
+            desc = frame.desc or ""
+            key = f"WXXX:{desc}" if desc else "WXXX"
+            out[key] = getattr(frame, "url", "") or str(frame)
+        for frame in tags.getall("WOAR"):
+            out["WOAR"] = getattr(frame, "url", "") or str(frame)
+
+    # MP4 freeform atoms (Apple ``----:mean:name`` used by iTunes/DAWs for custom tags).
+    if isinstance(audio, MP4):
+        try:
+            for key, value in dict(tags).items():
+                if key.startswith("----"):
+                    val = _first(value)
+                    if isinstance(val, (bytes, bytearray)):
+                        out[key] = _decode_bytes(val)
+                    else:
+                        out[key] = str(val)
+        except Exception:
+            pass
+
+    return out
 
 
 def extract_stream_info(audio, file_size):
@@ -275,6 +366,7 @@ def build_metadata(path):
         },
         "stream": extract_stream_info(audio, file_size),
         "tags": extract_tags(audio),
+        "extended_tags": extract_extended_tags(audio),
         "cover": cover,
         "_audio": audio,
         "_cover_bytes": cover_bytes,
@@ -313,6 +405,13 @@ def print_human(meta, include_raw=False):
         width = max(len(k) for k in tags.keys())
         for key in sorted(tags.keys()):
             print(f"  {key.ljust(width)}  {tags[key]}")
+
+    ext = meta.get("extended_tags") or {}
+    if ext:
+        print("\nExtended tags:")
+        width = max(len(k) for k in ext.keys())
+        for key in sorted(ext.keys()):
+            print(f"  {key.ljust(width)}  {ext[key]}")
 
     if meta["cover"]:
         c = meta["cover"]

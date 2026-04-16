@@ -463,6 +463,15 @@
     margin-bottom: 10px;
   }
 
+  .section-title .section-hint {
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-left: 8px;
+    font-size: 11px;
+  }
+
   .tags-table {
     display: grid;
     grid-template-columns: max-content 1fr;
@@ -601,6 +610,11 @@
 
       <div class="section-title">Tags</div>
       <div id="tagsContainer"></div>
+
+      <div class="section-title section-title-ext" id="extendedTagsTitle" style="display:none; margin-top: 24px;">
+        Extended tags <span class="section-hint">proprietary / format-specific frames</span>
+      </div>
+      <div id="extendedTagsContainer"></div>
     </div>
   </div>
 </div>
@@ -693,16 +707,17 @@ $('copyJsonBtn').addEventListener('click', () => {
   });
 });
 
-function renderTags(tags) {
-  const container = $('tagsContainer');
+function renderTagsInto(container, tags, emptyMessage) {
   container.innerHTML = '';
   const keys = Object.keys(tags || {});
   if (keys.length === 0) {
-    const note = document.createElement('div');
-    note.className = 'empty-note';
-    note.textContent = 'No tags found in this file.';
-    container.appendChild(note);
-    return;
+    if (emptyMessage) {
+      const note = document.createElement('div');
+      note.className = 'empty-note';
+      note.textContent = emptyMessage;
+      container.appendChild(note);
+    }
+    return 0;
   }
   const table = document.createElement('div');
   table.className = 'tags-table';
@@ -717,6 +732,7 @@ function renderTags(tags) {
     table.appendChild(valEl);
   });
   container.appendChild(table);
+  return keys.length;
 }
 
 processBtn.addEventListener('click', async () => {
@@ -765,7 +781,11 @@ processBtn.addEventListener('click', async () => {
       $('coverRow').classList.add('no-cover');
     }
 
-    renderTags(data.tags || {});
+    renderTagsInto($('tagsContainer'), data.tags || {}, 'No tags found in this file.');
+
+    const extCount = renderTagsInto($('extendedTagsContainer'), data.extended_tags || {}, null);
+    $('extendedTagsTitle').style.display = extCount > 0 ? 'block' : 'none';
+
     results.classList.add('show');
 
   } catch (err) {
