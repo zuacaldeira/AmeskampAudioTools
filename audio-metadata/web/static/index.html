@@ -453,6 +453,22 @@
 
   .stat .value.accent { color: var(--accent); }
 
+  .analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 700px) {
+    .analysis-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  .analysis-grid .stat .sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
   .section-title {
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
@@ -608,6 +624,11 @@
         <div class="stat"><div class="label">Channels</div><div class="value" id="statChannels">—</div></div>
       </div>
 
+      <div class="section-title section-title-analysis" id="analysisTitle" style="display:none;">
+        Analysis <span class="section-hint">signal-level</span>
+      </div>
+      <div class="analysis-grid" id="analysisGrid"></div>
+
       <div class="section-title">Tags</div>
       <div id="tagsContainer"></div>
 
@@ -707,6 +728,41 @@ $('copyJsonBtn').addEventListener('click', () => {
   });
 });
 
+function renderAnalysis(analysis) {
+  const grid = $('analysisGrid');
+  const title = $('analysisTitle');
+  grid.innerHTML = '';
+  const has = Object.keys(analysis).length > 0;
+  title.style.display = has ? 'block' : 'none';
+  if (!has) return;
+
+  const cards = [];
+  if (analysis.bpm != null) {
+    const sub = analysis.beat_count != null ? `${analysis.beat_count} beats` : '';
+    cards.push({ label: 'Tempo', value: `${analysis.bpm} BPM`, sub });
+  }
+  if (analysis.key) {
+    const sub = analysis.key_confidence != null ? `conf ${analysis.key_confidence}` : '';
+    cards.push({ label: 'Key', value: `${analysis.key} ${analysis.mode || ''}`.trim(), sub });
+  }
+  if (analysis.lufs_integrated != null) {
+    cards.push({ label: 'Loudness', value: `${analysis.lufs_integrated} LUFS`, sub: 'integrated' });
+  }
+  if (analysis.peak_dbfs != null) {
+    cards.push({ label: 'Peak', value: `${analysis.peak_dbfs} dBFS`, sub: '' });
+  }
+  if (analysis.rms_dbfs != null) {
+    cards.push({ label: 'RMS', value: `${analysis.rms_dbfs} dBFS`, sub: '' });
+  }
+
+  cards.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'stat';
+    div.innerHTML = `<div class="label">${c.label}</div><div class="value accent">${c.value}</div>${c.sub ? `<div class="sub">${c.sub}</div>` : ''}`;
+    grid.appendChild(div);
+  });
+}
+
 function renderTagsInto(container, tags, emptyMessage) {
   container.innerHTML = '';
   const keys = Object.keys(tags || {});
@@ -780,6 +836,8 @@ processBtn.addEventListener('click', async () => {
     } else {
       $('coverRow').classList.add('no-cover');
     }
+
+    renderAnalysis(data.analysis || {});
 
     renderTagsInto($('tagsContainer'), data.tags || {}, 'No tags found in this file.');
 

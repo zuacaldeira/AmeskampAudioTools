@@ -82,6 +82,11 @@ examples:
         action="store_true",
         help="Include raw format-specific tag keys in the output.",
     )
+    parser.add_argument(
+        "--analyze",
+        action="store_true",
+        help="Run audio signal analysis (tempo, key, loudness). Requires librosa/pyloudnorm.",
+    )
     return parser.parse_args()
 
 
@@ -278,6 +283,107 @@ def extract_extended_tags(audio):
                         out[key] = str(val)
         except Exception:
             pass
+
+    return out
+
+
+# Krumhansl–Schmuckler key profiles (empirically-derived pitch-class weights
+# for major and minor keys, rooted at C). Rotating these 12 times and
+# correlating against the mean chromagram of the input gives a simple key
+# estimate — the highest-correlating rotation is the best-fit key.
+_MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
+_MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
+_NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def _krumhansl_key(chroma_mean):
+    """Return (note_name, mode, correlation) by rotating Krumhansl profiles."""
+    import numpy as np
+
+    chroma = np.asarray(chroma_mean, dtype=float)
+    best = (None, None, -2.0)
+    for i in range(12):
+        for profile, mode in ((_MAJOR_PROFILE, "major"), (_MINOR_PROFILE, "minor")):
+            rotated = np.roll(profile, i)
+            corr = np.corrcoef(chroma, rotated)[0, 1]
+            if np.isfinite(corr) and corr > best[2]:
+                best = (_NOTE_NAMES[i], mode, float(corr))
+    return best
+
+
+def analyze_audio(path, max_duration_s=600):
+    """Lightweight signal analysis: tempo, key, loudness.
+
+    Returns dict with keys: bpm, beat_count, key, mode, key_confidence,
+    lufs_integrated, peak_dbfs, rms_dbfs. Returns {} if analysis libraries
+    are unavailable or the file can't be loaded.
+
+    Analysis is capped to ``max_duration_s`` seconds of audio to keep cost
+    bounded on long files. For a 5-minute track the full pass takes
+    single-digit seconds on CPU.
+    """
+    try:
+        import librosa
+        import numpy as np
+        import pyloudnorm
+    except ImportError:
+        return {}
+
+    try:
+        mono, sr = librosa.load(path, sr=None, mono=True, duration=max_duration_s)
+    except Exception:
+        return {}
+    if mono.size == 0:
+        return {}
+
+    out = {}
+
+    try:
+        tempo, beats = librosa.beat.beat_track(y=mono, sr=sr)
+        bpm = float(tempo.item()) if hasattr(tempo, "item") and np.ndim(tempo) == 0 else float(np.asarray(tempo).flat[0])
+        if 20 < bpm < 300:
+            out["bpm"] = round(bpm, 1)
+            out["beat_count"] = int(len(beats))
+    except Exception:
+        pass
+
+    try:
+        chroma = librosa.feature.chroma_cqt(y=mono, sr=sr)
+        mean = chroma.mean(axis=1)
+        if mean.sum() > 0:
+            mean = mean / mean.sum()
+            key, mode, conf = _krumhansl_key(mean)
+            if key is not None:
+                out["key"] = key
+                out["mode"] = mode
+                out["key_confidence"] = round(conf, 3)
+    except Exception:
+        pass
+
+    try:
+        stereo, sr_ld = librosa.load(path, sr=None, mono=False, duration=max_duration_s)
+        if stereo.ndim == 1:
+            samples = stereo
+            peak = float(np.max(np.abs(samples))) if samples.size else 0.0
+            rms = float(np.sqrt(np.mean(samples ** 2))) if samples.size else 0.0
+            loudness_input = samples
+        else:
+            # librosa returns (channels, frames); pyloudnorm wants (frames, channels)
+            loudness_input = stereo.T
+            peak = float(np.max(np.abs(stereo)))
+            rms = float(np.sqrt(np.mean(stereo ** 2)))
+
+        meter = pyloudnorm.Meter(sr_ld)
+        lufs = meter.integrated_loudness(loudness_input)
+        if np.isfinite(lufs):
+            out["lufs_integrated"] = round(float(lufs), 1)
+
+        if peak > 0:
+            out["peak_dbfs"] = round(20 * float(np.log10(peak)), 2)
+        if rms > 0:
+            out["rms_dbfs"] = round(20 * float(np.log10(rms)), 2)
+    except Exception:
+        pass
 
     return out
 
@@ -540,6 +646,23 @@ def print_human(meta, include_raw=False):
         for key in sorted(ext.keys()):
             print(f"  {key.ljust(width)}  {ext[key]}")
 
+    analysis = meta.get("analysis") or {}
+    if analysis:
+        print("\nAnalysis:")
+        if "bpm" in analysis:
+            beats = f" ({analysis['beat_count']} beats)" if "beat_count" in analysis else ""
+            print(f"  Tempo:      {analysis['bpm']} BPM{beats}")
+        if "key" in analysis:
+            conf = analysis.get("key_confidence")
+            conf_note = f"  (confidence {conf})" if conf is not None else ""
+            print(f"  Key:        {analysis['key']} {analysis['mode']}{conf_note}")
+        if "lufs_integrated" in analysis:
+            print(f"  Loudness:   {analysis['lufs_integrated']} LUFS integrated")
+        if "peak_dbfs" in analysis:
+            print(f"  Peak:       {analysis['peak_dbfs']} dBFS")
+        if "rms_dbfs" in analysis:
+            print(f"  RMS:        {analysis['rms_dbfs']} dBFS")
+
     if meta["cover"]:
         c = meta["cover"]
         print(f"\nCover: {c['mime']}, {format_size(c['size_bytes'])}")
@@ -567,6 +690,9 @@ def main():
     except (FileNotFoundError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+    if args.analyze:
+        meta["analysis"] = analyze_audio(args.input)
 
     if args.cover:
         if not meta["_cover_bytes"]:

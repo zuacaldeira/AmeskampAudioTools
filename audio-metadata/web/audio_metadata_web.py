@@ -24,7 +24,7 @@ from flask import Flask, request, jsonify, send_file, send_from_directory
 # Make the sibling CLI module importable regardless of how we're launched.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from audio_metadata import build_metadata  # noqa: E402
+from audio_metadata import analyze_audio, build_metadata  # noqa: E402
 
 app = Flask(__name__)
 
@@ -71,6 +71,7 @@ def metadata():
     try:
         file.save(input_path)
         meta = build_metadata(input_path)
+        meta["analysis"] = analyze_audio(input_path)
     except ValueError as e:
         if os.path.exists(input_path):
             os.remove(input_path)
