@@ -7,6 +7,9 @@ Inspect tags, stream info, and embedded cover art from audio files. Ships as a C
 - Tag extraction across MP3 (ID3), FLAC, WAV, OGG Vorbis, Opus, M4A/MP4, AIFF, WMA, APE, Musepack
 - Stream info: duration, bitrate, sample rate, channels, bit depth
 - Embedded cover art — preview in the browser or extract to a file via CLI
+- Proprietary/extended frames surfaced: ID3 `TXXX`, `PRIV`, `GEOB`, `UFID`, `WXXX`; MP4 freeform atoms
+- Broadcast WAV support via [`wavinfo`](https://pypi.org/project/wavinfo/): BWF `bext`, iXML, RIFF `INFO` lists, cues
+- Optional `ffprobe` fallback that surfaces any additional container-level tags when the binary is available
 - JSON output for scripting
 
 ## CLI

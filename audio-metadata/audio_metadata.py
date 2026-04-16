@@ -17,6 +17,7 @@ import argparse
 import base64
 import json
 import os
+import subprocess
 import sys
 
 from mutagen import File as MutagenFile
@@ -281,6 +282,128 @@ def extract_extended_tags(audio):
     return out
 
 
+def extract_broadcast_metadata(path):
+    """BWF ``bext``, iXML, RIFF ``INFO``, and cue-point metadata for WAV files.
+
+    Requires the optional ``wavinfo`` package. Returns {} for non-WAV files or
+    when wavinfo is unavailable. Keys are prefixed so they can be merged into
+    the extended_tags dict without colliding with ID3 frames.
+    """
+    if not path.lower().endswith((".wav", ".bwf", ".rf64", ".wave")):
+        return {}
+    try:
+        from wavinfo import WavInfoReader
+    except ImportError:
+        return {}
+    try:
+        info = WavInfoReader(path)
+    except Exception:
+        return {}
+
+    out = {}
+
+    bext = getattr(info, "bext", None)
+    if bext is not None:
+        bext_fields = [
+            "description", "originator", "originator_ref",
+            "originator_date", "originator_time", "time_reference",
+            "version", "coding_history", "loudness_value",
+            "loudness_range", "max_true_peak",
+            "max_momentary_loudness", "max_shortterm_loudness",
+        ]
+        for attr in bext_fields:
+            val = getattr(bext, attr, None)
+            if val in (None, "", 0):
+                continue
+            out[f"BWF:{attr}"] = str(val).strip()
+        umid = getattr(bext, "umid", None)
+        if umid:
+            out["BWF:umid"] = umid.hex() if isinstance(umid, (bytes, bytearray)) else str(umid)
+
+    ixml = getattr(info, "ixml", None)
+    if ixml is not None:
+        for attr in ["project", "scene", "take", "tape", "family_uid", "family_name"]:
+            try:
+                val = getattr(ixml, attr, None)
+            except Exception:
+                val = None
+            if val:
+                out[f"iXML:{attr}"] = str(val).strip()
+        try:
+            tracks = list(getattr(ixml, "track_list", []) or [])
+            for i, track in enumerate(tracks):
+                name = (getattr(track, "name", "") or "").strip()
+                fn = (getattr(track, "function", "") or "").strip()
+                label = f"{name} ({fn})" if name and fn else name or fn
+                if label:
+                    out[f"iXML:track_{i + 1}"] = label
+        except Exception:
+            pass
+
+    info_list = getattr(info, "info", None)
+    if info_list is not None:
+        info_fields = [
+            "title", "artist", "product", "genre", "subject", "comment",
+            "software", "created_date", "engineer", "technician",
+            "keywords", "source", "tape", "archival_location",
+            "commissioned", "copyright",
+        ]
+        for attr in info_fields:
+            val = getattr(info_list, attr, None)
+            if val:
+                out[f"RIFF-INFO:{attr}"] = str(val).strip()
+
+    cues = getattr(info, "cues", None)
+    if cues is not None:
+        n_cues = len(getattr(cues, "cues", []) or [])
+        n_labels = len(getattr(cues, "labels", []) or [])
+        n_notes = len(getattr(cues, "notes", []) or [])
+        if n_cues or n_labels or n_notes:
+            parts = []
+            if n_cues:
+                parts.append(f"{n_cues} cue point{'s' if n_cues != 1 else ''}")
+            if n_labels:
+                parts.append(f"{n_labels} label{'s' if n_labels != 1 else ''}")
+            if n_notes:
+                parts.append(f"{n_notes} note{'s' if n_notes != 1 else ''}")
+            out["CUES:summary"] = ", ".join(parts)
+
+    return out
+
+
+def extract_ffprobe_metadata(path):
+    """Container/stream metadata from ffprobe, as a flat prefixed dict.
+
+    Silently returns {} if the ``ffprobe`` binary is not on PATH or the call
+    fails — this is an optional enrichment, not a requirement.
+    """
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-print_format", "json",
+             "-show_format", "-show_streams", path],
+            capture_output=True, text=True, timeout=15,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return {}
+    if result.returncode != 0:
+        return {}
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return {}
+
+    out = {}
+    fmt = data.get("format") or {}
+    for k, v in (fmt.get("tags") or {}).items():
+        out[f"ffprobe:format:{k}"] = str(v)
+
+    for idx, stream in enumerate(data.get("streams") or []):
+        for k, v in (stream.get("tags") or {}).items():
+            out[f"ffprobe:stream{idx}:{k}"] = str(v)
+
+    return out
+
+
 def extract_stream_info(audio, file_size):
     """Technical info from the audio.info object, varying by format."""
     info = audio.info
@@ -358,6 +481,10 @@ def build_metadata(path):
             "size_bytes": len(cover_bytes),
         }
 
+    extended = extract_extended_tags(audio)
+    extended.update(extract_broadcast_metadata(path))
+    extended.update(extract_ffprobe_metadata(path))
+
     return {
         "file": {
             "path": os.path.abspath(path),
@@ -366,7 +493,7 @@ def build_metadata(path):
         },
         "stream": extract_stream_info(audio, file_size),
         "tags": extract_tags(audio),
-        "extended_tags": extract_extended_tags(audio),
+        "extended_tags": extended,
         "cover": cover,
         "_audio": audio,
         "_cover_bytes": cover_bytes,
