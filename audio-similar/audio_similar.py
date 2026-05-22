@@ -313,13 +313,108 @@ def cmd_index(args):
 
 
 # ---------------------------------------------------------------------------
-# Stub for `query` (implemented in the next task)
+# `query` subcommand
 # ---------------------------------------------------------------------------
 
+def _rank_matches(catalog, qvec, top, exclude_self_path=None):
+    """Return the top-N (row, score) pairs from the catalog by cosine similarity."""
+    vectors = catalog.vectors()
+    n = vectors.shape[0]
+    if n == 0:
+        return []
+    # Cosine = dot since both vectors are L2-normalized.
+    scores = vectors @ qvec.astype(np.float32)
+    rows = catalog.all_tracks()
+    pairs = []
+    for i in range(n):
+        if exclude_self_path and rows[i]["path"] == exclude_self_path:
+            continue
+        pairs.append((rows[i], float(scores[i])))
+    pairs.sort(key=lambda p: -p[1])
+    return pairs[:top]
+
+
 def cmd_query(args):
-    print("Error: 'query' is not implemented yet — coming in the next commit.",
-          file=sys.stderr)
-    return 1
+    if not os.path.isfile(args.song):
+        print(f"Error: file not found: {args.song}", file=sys.stderr)
+        return 1
+    db_path = os.path.join(args.catalog, DB_NAME)
+    if not os.path.isfile(db_path):
+        print(f"Error: no catalog at {args.catalog}. Run "
+              f"'audio_similar.py index <dir> --catalog {args.catalog}' first.",
+              file=sys.stderr)
+        return 1
+
+    from embed import embed
+
+    catalog = Catalog(args.catalog)
+    if catalog.count() == 0:
+        print("Error: catalog is empty.", file=sys.stderr)
+        return 1
+
+    qvec = embed(args.song)
+    if qvec.shape[0] != catalog.dim:
+        print(
+            f"Error: query embedding dim ({qvec.shape[0]}) doesn't match catalog "
+            f"({catalog.dim}). The catalog was built with a different model.",
+            file=sys.stderr,
+        )
+        return 1
+
+    abs_query = os.path.abspath(args.song)
+    exclude = abs_query if args.exclude_self else None
+    top_pairs = _rank_matches(catalog, qvec, args.top, exclude_self_path=exclude)
+
+    result = {
+        "query": {
+            "path": abs_query,
+            "name": os.path.basename(args.song),
+        },
+        "catalog": {
+            "path": os.path.abspath(args.catalog),
+            "track_count": catalog.count(),
+            "model": catalog.model_name,
+            "dim": catalog.dim,
+        },
+        "matches": [
+            {
+                "score": round(score, 4),
+                "path": row["path"],
+                "name": os.path.basename(row["path"]),
+                "title": row["title"],
+                "artist": row["artist"],
+                "album": row["album"],
+                "duration_seconds": row["duration_seconds"],
+            }
+            for row, score in top_pairs
+        ],
+    }
+
+    if args.json:
+        import json
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return 0
+
+    print(f"Query:   {result['query']['name']}")
+    print(f"Catalog: {result['catalog']['path']}  ({result['catalog']['track_count']} tracks)")
+    print()
+    if not result["matches"]:
+        print("No matches.")
+        return 0
+    print(f"Top {len(result['matches'])} match(es):")
+    for i, m in enumerate(result["matches"], 1):
+        score_pct = m["score"] * 100
+        bar = _ascii_bar(m["score"])
+        line1 = f"  [{i}] {score_pct:5.1f}%  {bar}  {m['name']}"
+        print(line1)
+        if m["artist"] or m["title"]:
+            print(f"           {(m['artist'] or '—')}  —  {(m['title'] or '—')}")
+    return 0
+
+
+def _ascii_bar(score, width=24):
+    n_full = max(0, min(width, int(round(score * width))))
+    return "█" * n_full + "░" * (width - n_full)
 
 
 # ---------------------------------------------------------------------------
@@ -343,9 +438,16 @@ def build_parser():
                      help="Log skipped tracks too.")
     idx.set_defaults(func=cmd_index)
 
-    qry = sub.add_parser("query", help="Find similar tracks for a query file (in next commit).")
-    qry.add_argument("song")
-    qry.add_argument("--catalog", default=DEFAULT_CATALOG)
+    qry = sub.add_parser("query", help="Find similar tracks for a query audio file.")
+    qry.add_argument("song", help="Audio file to find similar tracks for.")
+    qry.add_argument("--catalog", default=DEFAULT_CATALOG,
+                     help=f"Catalog directory (default: {DEFAULT_CATALOG}).")
+    qry.add_argument("--top", type=int, default=10,
+                     help="Number of matches to return (default: 10).")
+    qry.add_argument("--exclude-self", action="store_true",
+                     help="Don't return the query path itself when it's already in the catalog.")
+    qry.add_argument("--json", action="store_true",
+                     help="Output as JSON instead of human-readable text.")
     qry.set_defaults(func=cmd_query)
 
     return parser
