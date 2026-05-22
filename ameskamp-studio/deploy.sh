@@ -106,13 +106,20 @@ mkdir -p /var/www/certbot
 # After certs exist, the real conf (with SSL) gets installed and certbot can
 # renew through the same webroot.
 for d in "${SUBDOMAINS[@]}"; do
+    # Apex bootstrap also serves www so certbot's http-01 challenge passes
+    # for both names in the SAN cert request.
+    if [ "$d" = "ameskamp.studio" ]; then
+        names="ameskamp.studio www.ameskamp.studio"
+    else
+        names="$d"
+    fi
     if [ ! -d "/etc/letsencrypt/live/$d" ]; then
         echo "  $d: no cert yet — installing HTTP-only bootstrap"
         cat > "/etc/nginx/sites-available/$d" <<HTTP_STUB
 server {
     listen 80;
     listen [::]:80;
-    server_name $d;
+    server_name $names;
     location /.well-known/acme-challenge/ { root /var/www/certbot; }
     location / { return 200 "$d: awaiting SSL\n"; add_header Content-Type text/plain; }
 }
@@ -149,11 +156,20 @@ for d in "${SUBDOMAINS[@]}"; do
         echo "  $d: cert exists, skipping issuance"
         continue
     fi
-    echo "  $d: issuing cert via http-01..."
-    certbot certonly --webroot -w /var/www/certbot \
-        -d "$d" \
-        --non-interactive --agree-tos --email "$ADMIN_EMAIL" \
-        --no-eff-email
+    # The apex cert covers www too — both names live in the same vhost file.
+    if [ "$d" = "ameskamp.studio" ]; then
+        echo "  $d: issuing SAN cert (ameskamp.studio + www.ameskamp.studio)..."
+        certbot certonly --webroot -w /var/www/certbot \
+            -d ameskamp.studio -d www.ameskamp.studio \
+            --non-interactive --agree-tos --email "$ADMIN_EMAIL" \
+            --no-eff-email
+    else
+        echo "  $d: issuing cert via http-01..."
+        certbot certonly --webroot -w /var/www/certbot \
+            -d "$d" \
+            --non-interactive --agree-tos --email "$ADMIN_EMAIL" \
+            --no-eff-email
+    fi
     cp "$PROJECT_DIR/ameskamp-studio/nginx/conf.d/$d.conf" "/etc/nginx/sites-available/$d"
     issued_any=1
 done
