@@ -11,7 +11,7 @@ WORKDIR /app
 # Install CPU-only torch first to keep the image small.
 COPY requirements.txt .
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
-        torch==2.5.* && \
+        torch==2.6.* && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=appuser:appuser embed.py .
