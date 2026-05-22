@@ -1,1 +1,5 @@
 test-audio/
+__pycache__/
+*.pyc
+.venv/
+.tmp_certs/
