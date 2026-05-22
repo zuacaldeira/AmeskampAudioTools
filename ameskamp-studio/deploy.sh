@@ -27,6 +27,7 @@ SUBDOMAINS=(
     "metadata.ameskamp.studio"
     "match.ameskamp.studio"
     "silence.ameskamp.studio"
+    "events.ameskamp.studio"
 )
 
 echo "=== Ameskamp Studio deploy ==="

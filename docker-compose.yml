@@ -47,3 +47,21 @@ services:
       - /tmp:size=2G
     environment:
       - TMPDIR=/tmp
+
+  audio-events:
+    build: ./audio-events
+    container_name: ameskamp-audio-events
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5004:5004"
+    tmpfs:
+      - /tmp:size=1G
+    volumes:
+      # PANNs checkpoint cache. Survives container rebuilds so the labels
+      # CSV + Cnn14 weights aren't redownloaded on every deploy.
+      - panns-data:/home/appuser/panns_data
+    environment:
+      - TMPDIR=/tmp
+
+volumes:
+  panns-data: {}
