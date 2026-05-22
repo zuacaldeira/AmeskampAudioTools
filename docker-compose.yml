@@ -63,5 +63,22 @@ services:
     environment:
       - TMPDIR=/tmp
 
+  audio-similar:
+    build: ./audio-similar
+    container_name: ameskamp-audio-similar
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5003:5003"
+    tmpfs:
+      - /tmp:size=1G
+    volumes:
+      # Catalog (SQLite + vectors.npy). Bind-mounted so the indexer CLI and
+      # the web service share state, and so it can be pre-built locally and
+      # copied onto the VPS.
+      - ./audio-similar/catalog:/catalog
+    environment:
+      - TMPDIR=/tmp
+      - AUDIO_SIMILAR_CATALOG=/catalog
+
 volumes:
   panns-data: {}
