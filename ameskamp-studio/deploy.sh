@@ -52,6 +52,8 @@ rsync -avz --delete \
     --exclude=".DS_Store" \
     --exclude="node_modules" \
     --exclude="test-audio" \
+    --exclude=".env" \
+    --exclude="/audio-similar/catalog/" \
     ./ "$SERVER:$PROJECT_DIR/"
 
 # ---------------------------------------------------------------------------
