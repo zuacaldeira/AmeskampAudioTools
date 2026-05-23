@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ameskamp — Audio Discover</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-card: #16161f;
+    --bg-elevated: #1c1c28;
+    --border: #2a2a3a;
+    --border-active: #4a4a6a;
+    --text-primary: #e8e8f0;
+    --text-secondary: #8888a8;
+    --text-muted: #555570;
+    --accent: #c4b5fd;
+    --accent-dim: #5b4b94;
+    --accent-glow: rgba(196, 181, 253, 0.15);
+    --accent-strong: #8b5cf6;
+    --danger: #f87171;
+    --warning: #fbbf24;
+    --success: #4ade80;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(196, 181, 253, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(196, 181, 253, 0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+  .app { position: relative; z-index: 1; max-width: 880px; margin: 0 auto; padding: 48px 24px 40px; }
+  .footer { position: relative; z-index: 1; text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px; }
+  .footer a { color: var(--text-secondary); text-decoration: none; }
+  .footer a:hover { color: var(--accent); }
+
+  .header { margin-bottom: 40px; }
+  .header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px; font-weight: 600;
+    letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .header h1 .business-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase; color: #fff;
+  }
+  .header h1 .brand { display: flex; flex-direction: column; gap: 2px; }
+  .header h1 .icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #0a0a0f;
+    box-shadow: 0 0 24px var(--accent-glow);
+  }
+  .header p { margin-top: 8px; color: var(--text-secondary); font-size: 15px; padding-left: 48px; }
+
+  .dropzone {
+    position: relative;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 48px 32px;
+    text-align: center; cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--bg-secondary);
+    margin-bottom: 24px;
+  }
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+  .dropzone.has-file { border-style: solid; border-color: var(--accent-dim); padding: 22px 32px; }
+  .dropzone-prompt { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .dropzone-prompt svg { width: 44px; height: 44px; color: var(--text-muted); }
+  .dropzone:hover .dropzone-prompt svg { color: var(--accent); }
+  .dropzone-prompt .main-text { font-size: 16px; color: var(--text-secondary); }
+  .dropzone-prompt .sub-text { font-size: 13px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .dropzone input[type="file"] { display: none; }
+  .file-info { display: flex; align-items: center; gap: 16px; width: 100%; }
+  .file-icon {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    background: var(--accent-glow);
+    border: 1px solid var(--accent-dim);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .file-icon svg { width: 22px; height: 22px; color: var(--accent); }
+  .file-details { flex: 1; min-width: 0; text-align: left; }
+  .file-details .name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .file-details .meta { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .file-remove {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .file-remove:hover { border-color: var(--danger); color: var(--danger); }
+
+  .process-btn {
+    width: 100%; height: 54px;
+    border: none; border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px; font-weight: 600;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+    color: #0a0a0f;
+    box-shadow: 0 4px 24px rgba(139, 92, 246, 0.2);
+    margin-bottom: 32px;
+  }
+  .process-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 32px rgba(139, 92, 246, 0.3); }
+  .process-btn:disabled { background: var(--bg-elevated); color: var(--text-muted); box-shadow: none; cursor: not-allowed; }
+  .process-btn.processing { background: var(--bg-elevated); color: var(--accent); box-shadow: none; }
+  .process-btn .progress-bar {
+    position: absolute; left: 0; bottom: 0;
+    height: 3px; background: var(--accent);
+    width: 0%; transition: width 0.3s ease;
+  }
+
+  .results { display: none; animation: fadeUp 0.4s ease; }
+  .results.show { display: block; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ===== Identified source-track card ===== */
+  .source-card {
+    background: var(--bg-card);
+    border: 1px solid var(--accent-dim);
+    border-radius: 16px;
+    padding: 22px 24px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "label info link";
+    gap: 16px;
+    align-items: center;
+  }
+  .source-card .source-label {
+    grid-area: label;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--accent);
+    padding: 4px 10px;
+    background: var(--accent-glow);
+    border-radius: 4px;
+  }
+  .source-card .source-info { grid-area: info; min-width: 0; }
+  .source-card .source-title {
+    font-size: 18px; font-weight: 600; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .source-card .source-artist {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; color: var(--text-secondary);
+    margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .source-card .source-score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--text-muted);
+    margin-top: 4px;
+  }
+  .source-card .source-link {
+    grid-area: link;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .source-card .source-link:hover {
+    color: var(--accent); border-color: var(--accent-dim); background: var(--accent-glow);
+  }
+  @media (max-width: 600px) {
+    .source-card { grid-template-columns: 1fr; grid-template-areas: "label" "info" "link"; }
+    .source-card .source-label { justify-self: start; }
+    .source-card .source-link { justify-self: start; }
+  }
+
+  /* ===== Related-tracks list ===== */
+  .results-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+  .results-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px;
+  }
+  .results-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--accent);
+  }
+  .copy-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 500;
+    cursor: pointer;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent-dim); }
+  .copy-btn svg { width: 14px; height: 14px; }
+  .meta-line { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+  .meta-line .sep { color: var(--border-active); margin: 0 8px; }
+
+  .related { display: flex; flex-direction: column; gap: 8px; }
+  .rel {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    gap: 14px;
+    align-items: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    transition: border-color 0.2s;
+  }
+  .rel:hover { border-color: var(--accent-dim); }
+  .rel .rank {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; font-weight: 600;
+    color: var(--text-muted);
+    text-align: center;
+  }
+  .rel .rel-body { min-width: 0; }
+  .rel .rel-title {
+    font-size: 14px; font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .rel .rel-artist {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .rel .rel-album {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .rel .rel-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .rel .rel-link:hover { color: var(--accent); border-color: var(--accent-dim); background: var(--accent-glow); }
+
+  .empty-note {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; color: var(--text-muted);
+    padding: 18px 20px;
+    background: var(--bg-secondary);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    line-height: 1.55;
+  }
+  .empty-note .small {
+    display: block; margin-top: 6px;
+    font-size: 11px; color: var(--text-muted);
+  }
+  .error-msg {
+    display: none;
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-radius: 10px;
+    padding: 16px 20px;
+    color: var(--danger);
+    font-size: 14px;
+    margin-bottom: 24px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .error-msg.show { display: block; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+  ::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>
+      <span class="icon">&#10162;</span>
+      <span class="brand">
+        <span class="business-name">Ameskamp</span>
+        Audio Discover
+      </span>
+    </h1>
+    <p>Identify an audio file, then surface tracks other listeners hear alongside it. Behavior-based similarity via ListenBrainz.</p>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <div class="dropzone-prompt" id="dropPrompt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span class="main-text">Drop audio file here or click to browse</span>
+      <span class="sub-text">MP3 · FLAC · WAV · OGG · OPUS · M4A · up to 500 MB</span>
+    </div>
+    <div class="file-info" id="fileInfo" style="display:none">
+      <div class="file-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18V5l12-2v13"/>
+          <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+        </svg>
+      </div>
+      <div class="file-details">
+        <div class="name" id="fileName"></div>
+        <div class="meta" id="fileMeta"></div>
+      </div>
+      <button class="file-remove" id="fileRemove" title="Remove file">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <input type="file" id="fileInput" accept="audio/*,.wav,.mp3,.flac,.ogg,.opus,.m4a,.aac,.aiff,.aif">
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <button class="process-btn" id="processBtn" disabled>
+    <span id="btnText">Select a file to begin</span>
+    <div class="progress-bar" id="progressBar"></div>
+  </button>
+
+  <div class="results" id="results">
+    <div id="sourceContainer"></div>
+    <div class="results-card">
+      <div class="results-header">
+        <div class="results-title">Related tracks</div>
+        <button class="copy-btn" id="copyJsonBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+          </svg>
+          <span id="copyJsonLabel">Copy JSON</span>
+        </button>
+      </div>
+      <div class="meta-line" id="metaLine"></div>
+      <div id="relatedContainer"></div>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  Built by <a href="https://github.com/zuacaldeira" target="_blank" rel="noopener">Zua Caldeira</a>
+  · powered by <a href="https://acoustid.org" target="_blank" rel="noopener">AcoustID</a>
+  + <a href="https://listenbrainz.org" target="_blank" rel="noopener">ListenBrainz</a>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const dropzone = $('dropzone');
+const fileInput = $('fileInput');
+const dropPrompt = $('dropPrompt');
+const fileInfo = $('fileInfo');
+const processBtn = $('processBtn');
+const btnText = $('btnText');
+const progressBar = $('progressBar');
+const results = $('results');
+const errorMsg = $('errorMsg');
+
+let selectedFile = null;
+let lastResult = null;
+
+function formatSize(bytes) {
+  if (bytes == null) return '—';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function setFile(file) {
+  if (!file) return;
+  selectedFile = file;
+  dropPrompt.style.display = 'none';
+  fileInfo.style.display = 'flex';
+  $('fileName').textContent = file.name;
+  $('fileMeta').textContent = formatSize(file.size);
+  dropzone.classList.add('has-file');
+  processBtn.disabled = false;
+  btnText.textContent = 'Discover Related Tracks';
+  results.classList.remove('show');
+  errorMsg.classList.remove('show');
+}
+function clearFile(e) {
+  if (e) e.stopPropagation();
+  selectedFile = null;
+  fileInput.value = '';
+  dropPrompt.style.display = 'flex';
+  fileInfo.style.display = 'none';
+  dropzone.classList.remove('has-file');
+  processBtn.disabled = true;
+  btnText.textContent = 'Select a file to begin';
+  results.classList.remove('show');
+  errorMsg.classList.remove('show');
+}
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { if (e.target.files[0]) setFile(e.target.files[0]); });
+$('fileRemove').addEventListener('click', clearFile);
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+$('copyJsonBtn').addEventListener('click', () => {
+  if (!lastResult) return;
+  navigator.clipboard.writeText(JSON.stringify(lastResult, null, 2)).then(() => {
+    const label = $('copyJsonLabel');
+    const orig = label.textContent;
+    label.textContent = 'Copied!';
+    setTimeout(() => { label.textContent = orig; }, 1500);
+  });
+});
+
+function renderSource(identified) {
+  const container = $('sourceContainer');
+  if (!identified) {
+    container.innerHTML = `
+      <div class="source-card" style="border-color: var(--border)">
+        <div class="source-label" style="color: var(--warning); background: rgba(251,191,36,0.1)">NOT IDENTIFIED</div>
+        <div class="source-info">
+          <div class="source-title">No AcoustID match</div>
+          <div class="source-artist">Without an identified recording, no related tracks can be fetched.</div>
+        </div>
+        <span></span>
+      </div>`;
+    return;
+  }
+  const artist = identified.artist || '(unknown artist)';
+  const title = identified.title || '(untitled)';
+  const score = identified.match_score != null ? (identified.match_score * 100).toFixed(1) + '%' : '—';
+  const mbLink = identified.musicbrainz_url
+    ? `<a class="source-link" href="${escapeHtml(identified.musicbrainz_url)}" target="_blank" rel="noopener">MusicBrainz ↗</a>`
+    : '<span></span>';
+  container.innerHTML = `
+    <div class="source-card">
+      <div class="source-label">IDENTIFIED</div>
+      <div class="source-info">
+        <div class="source-title" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
+        <div class="source-artist">${escapeHtml(artist)}</div>
+        <div class="source-score">match ${score}  ·  MBID ${escapeHtml(identified.mbid || '')}</div>
+      </div>
+      ${mbLink}
+    </div>`;
+}
+
+function renderRelated(related) {
+  const container = $('relatedContainer');
+  if (!related || related.length === 0) {
+    container.innerHTML = `
+      <div class="empty-note">
+        No related tracks returned by ListenBrainz.
+        <span class="small">Niche/rare recordings often have no collaborative similarity data. Popular catalog matches usually return dozens.</span>
+      </div>`;
+    return;
+  }
+  const rows = related.map((r, i) => {
+    const album = r.album ? `<div class="rel-album">on ${escapeHtml(r.album)}  ·  score ${r.score}</div>` : '';
+    const mbLink = r.musicbrainz_url
+      ? `<a class="rel-link" href="${escapeHtml(r.musicbrainz_url)}" target="_blank" rel="noopener">MusicBrainz ↗</a>`
+      : '';
+    return `
+      <div class="rel">
+        <div class="rank">${i + 1}</div>
+        <div class="rel-body">
+          <div class="rel-title" title="${escapeHtml(r.title || '')}">${escapeHtml(r.title || '(untitled)')}</div>
+          <div class="rel-artist">${escapeHtml(r.artist || '(unknown artist)')}</div>
+          ${album}
+        </div>
+        ${mbLink}
+      </div>`;
+  }).join('');
+  container.innerHTML = `<div class="related">${rows}</div>`;
+}
+
+processBtn.addEventListener('click', async () => {
+  if (!selectedFile || processBtn.disabled) return;
+
+  errorMsg.classList.remove('show');
+  results.classList.remove('show');
+
+  processBtn.disabled = true;
+  processBtn.classList.add('processing');
+  btnText.textContent = 'Fingerprinting…';
+
+  let progress = 0;
+  const progressInterval = setInterval(() => {
+    progress = Math.min(progress + (90 - progress) * 0.06, 90);
+    progressBar.style.width = progress + '%';
+  }, 200);
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try {
+    const res = await fetch('/api/discover', { method: 'POST', body: formData });
+    const data = await res.json();
+    clearInterval(progressInterval);
+    progressBar.style.width = '100%';
+    if (!res.ok) throw new Error(data.error || 'Discovery failed');
+
+    lastResult = data;
+    renderSource(data.identified);
+    renderRelated(data.related);
+
+    const parts = [];
+    if (data.identified) parts.push(`identified at ${(data.identified.match_score * 100).toFixed(1)}%`);
+    if (data.related) parts.push(`${data.related.length} related track${data.related.length === 1 ? '' : 's'}`);
+    $('metaLine').innerHTML = parts.map(escapeHtml).join('<span class="sep">·</span>');
+
+    results.classList.add('show');
+  } catch (err) {
+    clearInterval(progressInterval);
+    errorMsg.textContent = err.message;
+    errorMsg.classList.add('show');
+  } finally {
+    setTimeout(() => { progressBar.style.width = '0%'; }, 400);
+    processBtn.disabled = false;
+    processBtn.classList.remove('processing');
+    btnText.textContent = 'Discover Related Tracks';
+  }
+});
+</script>
+</body>
+</html>
