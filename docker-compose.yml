@@ -80,5 +80,17 @@ services:
       - TMPDIR=/tmp
       - AUDIO_SIMILAR_CATALOG=/catalog
 
+  audio-discover:
+    build: ./audio-discover
+    container_name: ameskamp-audio-discover
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5005:5005"
+    tmpfs:
+      - /tmp:size=1G
+    environment:
+      - TMPDIR=/tmp
+      - ACOUSTID_API_KEY=${ACOUSTID_API_KEY:-}
+
 volumes:
   panns-data: {}
