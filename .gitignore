@@ -1,1 +1,8 @@
 test-audio/
+__pycache__/
+*.pyc
+.venv/
+.tmp_certs/
+
+# Impeccable design-review notes stay local
+/.impeccable/

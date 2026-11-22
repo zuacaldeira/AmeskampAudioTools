@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ameskamp — Audio Similar</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-card: #16161f;
+    --bg-elevated: #1c1c28;
+    --border: #2a2a3a;
+    --border-active: #4a4a6a;
+    --text-primary: #e8e8f0;
+    --text-secondary: #8888a8;
+    --text-muted: #555570;
+    --accent: #c4b5fd;
+    --accent-dim: #5b4b94;
+    --accent-glow: rgba(196, 181, 253, 0.15);
+    --accent-strong: #8b5cf6;
+    --danger: #f87171;
+    --warning: #fbbf24;
+    --success: #4ade80;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(196, 181, 253, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(196, 181, 253, 0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+  .app { position: relative; z-index: 1; max-width: 880px; margin: 0 auto; padding: 48px 24px 40px; }
+  .footer { position: relative; z-index: 1; text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px; }
+  .footer a { color: var(--text-secondary); text-decoration: none; }
+  .footer a:hover { color: var(--accent); }
+
+  .header { margin-bottom: 32px; }
+  .header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px; font-weight: 600;
+    letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .header h1 .business-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase; color: #fff;
+  }
+  .header h1 .brand { display: flex; flex-direction: column; gap: 2px; }
+  .header h1 .icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #0a0a0f;
+    box-shadow: 0 0 24px var(--accent-glow);
+  }
+  .header p { margin-top: 8px; color: var(--text-secondary); font-size: 15px; padding-left: 48px; }
+
+  /* ===== Catalog status panel ===== */
+  .catalog-panel {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 18px;
+    margin-bottom: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .catalog-panel .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--warning);
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+    flex-shrink: 0;
+  }
+  .catalog-panel.ready .dot { background: var(--success); box-shadow: 0 0 8px rgba(74, 222, 128, 0.5); }
+  .catalog-panel.error .dot { background: var(--danger); box-shadow: 0 0 8px rgba(248, 113, 113, 0.5); }
+  .catalog-panel .label { color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; font-size: 11px; }
+  .catalog-panel .value { color: var(--text-primary); }
+  .catalog-panel .sep { color: var(--border-active); margin: 0 4px; }
+  .catalog-panel .msg { color: var(--text-secondary); flex: 1; }
+
+  /* ===== Dropzone ===== */
+  .dropzone {
+    position: relative;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 48px 32px;
+    text-align: center; cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--bg-secondary);
+    margin-bottom: 24px;
+  }
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+  .dropzone.has-file { border-style: solid; border-color: var(--accent-dim); padding: 22px 32px; }
+  .dropzone-prompt { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .dropzone-prompt svg { width: 44px; height: 44px; color: var(--text-muted); }
+  .dropzone:hover .dropzone-prompt svg { color: var(--accent); }
+  .dropzone-prompt .main-text { font-size: 16px; color: var(--text-secondary); }
+  .dropzone-prompt .sub-text { font-size: 13px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .dropzone input[type="file"] { display: none; }
+  .file-info { display: flex; align-items: center; gap: 16px; width: 100%; }
+  .file-icon {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    background: var(--accent-glow);
+    border: 1px solid var(--accent-dim);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .file-icon svg { width: 22px; height: 22px; color: var(--accent); }
+  .file-details { flex: 1; min-width: 0; text-align: left; }
+  .file-details .name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .file-details .meta { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .file-remove {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .file-remove:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* ===== Process button ===== */
+  .process-btn {
+    width: 100%; height: 54px;
+    border: none; border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px; font-weight: 600;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+    color: #0a0a0f;
+    box-shadow: 0 4px 24px rgba(139, 92, 246, 0.2);
+    margin-bottom: 32px;
+  }
+  .process-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 32px rgba(139, 92, 246, 0.3); }
+  .process-btn:disabled { background: var(--bg-elevated); color: var(--text-muted); box-shadow: none; cursor: not-allowed; }
+  .process-btn.processing { background: var(--bg-elevated); color: var(--accent); box-shadow: none; }
+  .process-btn .progress-bar {
+    position: absolute; left: 0; bottom: 0;
+    height: 3px; background: var(--accent);
+    width: 0%; transition: width 0.3s ease;
+  }
+
+  /* ===== Results ===== */
+  .results { display: none; animation: fadeUp 0.4s ease; }
+  .results.show { display: block; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  .results-card {
+    background: var(--bg-card);
+    border: 1px solid var(--accent-dim);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+  .results-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px;
+  }
+  .results-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--accent);
+  }
+  .copy-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 500;
+    cursor: pointer;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent-dim); }
+  .copy-btn svg { width: 14px; height: 14px; }
+  .meta-line { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted); margin-bottom: 20px; }
+  .meta-line .sep { color: var(--border-active); margin: 0 8px; }
+
+  .matches { display: flex; flex-direction: column; gap: 10px; }
+  .match {
+    display: grid;
+    grid-template-columns: 60px 1fr 90px;
+    gap: 14px;
+    align-items: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    transition: border-color 0.2s;
+  }
+  .match:hover { border-color: var(--accent-dim); }
+  .match.best { border-color: var(--accent-dim); background: rgba(139, 92, 246, 0.04); }
+
+  .score-circle {
+    width: 50px; height: 50px;
+    border-radius: 50%;
+    background: conic-gradient(var(--accent) calc(var(--p) * 1%), var(--bg-elevated) 0);
+    display: flex; align-items: center; justify-content: center;
+    position: relative; flex-shrink: 0;
+  }
+  .score-circle::before {
+    content: '';
+    position: absolute; inset: 3px;
+    border-radius: 50%;
+    background: var(--bg-secondary);
+  }
+  .score-circle .pct {
+    position: relative;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600;
+    color: var(--accent);
+  }
+
+  .match-body { min-width: 0; }
+  .match-title {
+    font-size: 14px; font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .match-artist {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .match-path {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .match-duration {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  .empty-note, .help-note {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; color: var(--text-muted);
+    padding: 16px; text-align: center;
+    background: var(--bg-secondary);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+  }
+  .error-msg {
+    display: none;
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-radius: 10px;
+    padding: 16px 20px;
+    color: var(--danger);
+    font-size: 14px;
+    margin-bottom: 24px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .error-msg.show { display: block; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+  ::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>
+      <span class="icon">&#8767;</span>
+      <span class="brand">
+        <span class="business-name">Ameskamp</span>
+        Audio Similar
+      </span>
+    </h1>
+    <p>Find sounds-alike tracks in your catalog. Upload a song; matches are ranked by CLAP embedding similarity.</p>
+  </div>
+
+  <div class="catalog-panel" id="catalogPanel">
+    <span class="dot"></span>
+    <span class="msg" id="catalogMsg">Loading catalog status…</span>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <div class="dropzone-prompt" id="dropPrompt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span class="main-text">Drop a query song here or click to browse</span>
+      <span class="sub-text">MP3 · FLAC · WAV · OGG · OPUS · M4A · up to 500 MB</span>
+    </div>
+    <div class="file-info" id="fileInfo" style="display:none">
+      <div class="file-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18V5l12-2v13"/>
+          <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+        </svg>
+      </div>
+      <div class="file-details">
+        <div class="name" id="fileName"></div>
+        <div class="meta" id="fileMeta"></div>
+      </div>
+      <button class="file-remove" id="fileRemove" title="Remove file">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <input type="file" id="fileInput" accept="audio/*,.wav,.mp3,.flac,.ogg,.opus,.m4a,.aac,.aiff,.aif">
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <button class="process-btn" id="processBtn" disabled>
+    <span id="btnText">Select a file to begin</span>
+    <div class="progress-bar" id="progressBar"></div>
+  </button>
+
+  <div class="results" id="results">
+    <div class="results-card">
+      <div class="results-header">
+        <div class="results-title">Similar tracks</div>
+        <button class="copy-btn" id="copyJsonBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+          </svg>
+          <span id="copyJsonLabel">Copy JSON</span>
+        </button>
+      </div>
+      <div class="meta-line" id="metaLine"></div>
+      <div id="matchesContainer"></div>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  Built by <a href="https://github.com/zuacaldeira" target="_blank" rel="noopener">Zua Caldeira</a>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const dropzone = $('dropzone');
+const fileInput = $('fileInput');
+const dropPrompt = $('dropPrompt');
+const fileInfo = $('fileInfo');
+const processBtn = $('processBtn');
+const btnText = $('btnText');
+const progressBar = $('progressBar');
+const results = $('results');
+const errorMsg = $('errorMsg');
+const catalogPanel = $('catalogPanel');
+const catalogMsg = $('catalogMsg');
+
+let selectedFile = null;
+let lastResult = null;
+let catalogReady = false;
+
+function formatSize(bytes) {
+  if (bytes == null) return '—';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+function formatDuration(sec) {
+  if (sec == null) return null;
+  const total = Math.round(sec);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function loadCatalogStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    if (data.ready) {
+      catalogReady = true;
+      catalogPanel.classList.add('ready');
+      catalogPanel.classList.remove('error');
+      catalogMsg.innerHTML =
+        `<span class="label">Catalog</span> <span class="value">${data.track_count} track${data.track_count === 1 ? '' : 's'}</span>` +
+        `<span class="sep">·</span><span class="label">Model</span> <span class="value">${escapeHtml(data.model || 'CLAP')}</span>`;
+    } else {
+      catalogReady = false;
+      catalogPanel.classList.remove('ready');
+      catalogPanel.classList.add('error');
+      catalogMsg.textContent = data.message || data.error || 'Catalog not ready.';
+    }
+    updateButtonState();
+  } catch (e) {
+    catalogReady = false;
+    catalogPanel.classList.remove('ready');
+    catalogPanel.classList.add('error');
+    catalogMsg.textContent = 'Could not load catalog status: ' + e.message;
+    updateButtonState();
+  }
+}
+
+function updateButtonState() {
+  if (!catalogReady) {
+    processBtn.disabled = true;
+    btnText.textContent = 'Catalog not ready';
+    return;
+  }
+  if (!selectedFile) {
+    processBtn.disabled = true;
+    btnText.textContent = 'Select a file to begin';
+    return;
+  }
+  processBtn.disabled = false;
+  btnText.textContent = 'Find similar tracks';
+}
+
+function setFile(file) {
+  if (!file) return;
+  selectedFile = file;
+  dropPrompt.style.display = 'none';
+  fileInfo.style.display = 'flex';
+  $('fileName').textContent = file.name;
+  $('fileMeta').textContent = formatSize(file.size);
+  dropzone.classList.add('has-file');
+  results.classList.remove('show');
+  errorMsg.classList.remove('show');
+  updateButtonState();
+}
+function clearFile(e) {
+  if (e) e.stopPropagation();
+  selectedFile = null;
+  fileInput.value = '';
+  dropPrompt.style.display = 'flex';
+  fileInfo.style.display = 'none';
+  dropzone.classList.remove('has-file');
+  results.classList.remove('show');
+  errorMsg.classList.remove('show');
+  updateButtonState();
+}
+
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { if (e.target.files[0]) setFile(e.target.files[0]); });
+$('fileRemove').addEventListener('click', clearFile);
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+$('copyJsonBtn').addEventListener('click', () => {
+  if (!lastResult) return;
+  navigator.clipboard.writeText(JSON.stringify(lastResult, null, 2)).then(() => {
+    const label = $('copyJsonLabel');
+    const orig = label.textContent;
+    label.textContent = 'Copied!';
+    setTimeout(() => { label.textContent = orig; }, 1500);
+  });
+});
+
+function renderMatches(matches) {
+  if (!matches || matches.length === 0) {
+    return `<div class="empty-note">No matches.</div>`;
+  }
+  const rows = matches.map((m, i) => {
+    const pct = Math.round(m.score * 100);
+    const isBest = i === 0;
+    const title = m.title || m.name;
+    const artist = m.artist;
+    const dur = formatDuration(m.duration_seconds);
+    return `
+      <div class="match ${isBest ? 'best' : ''}">
+        <div class="score-circle" style="--p:${pct}"><span class="pct">${pct}%</span></div>
+        <div class="match-body">
+          <div class="match-title" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
+          ${artist ? `<div class="match-artist">${escapeHtml(artist)}</div>` : ''}
+          <div class="match-path" title="${escapeHtml(m.path)}">${escapeHtml(m.path)}</div>
+        </div>
+        <div class="match-duration">${dur || ''}</div>
+      </div>`;
+  }).join('');
+  return `<div class="matches">${rows}</div>`;
+}
+
+processBtn.addEventListener('click', async () => {
+  if (!selectedFile || processBtn.disabled) return;
+
+  errorMsg.classList.remove('show');
+  results.classList.remove('show');
+
+  processBtn.disabled = true;
+  processBtn.classList.add('processing');
+  btnText.textContent = 'Embedding query…';
+
+  let progress = 0;
+  const progressInterval = setInterval(() => {
+    progress = Math.min(progress + (90 - progress) * 0.06, 90);
+    progressBar.style.width = progress + '%';
+  }, 200);
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try {
+    const res = await fetch('/api/query', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    clearInterval(progressInterval);
+    progressBar.style.width = '100%';
+
+    if (!res.ok) throw new Error(data.error || 'Query failed');
+
+    lastResult = data;
+
+    const parts = [];
+    if (data.matches) parts.push(`${data.matches.length} match${data.matches.length === 1 ? '' : 'es'}`);
+    if (data.catalog) parts.push(`catalog ${data.catalog.track_count} tracks`);
+    if (data.catalog && data.catalog.model) parts.push(`model ${data.catalog.model}`);
+    $('metaLine').innerHTML = parts.map(escapeHtml).join('<span class="sep">·</span>');
+
+    $('matchesContainer').innerHTML = renderMatches(data.matches);
+    results.classList.add('show');
+  } catch (err) {
+    clearInterval(progressInterval);
+    errorMsg.textContent = err.message;
+    errorMsg.classList.add('show');
+  } finally {
+    setTimeout(() => { progressBar.style.width = '0%'; }, 400);
+    processBtn.classList.remove('processing');
+    updateButtonState();
+  }
+});
+
+loadCatalogStatus();
+</script>
+</body>
+</html>

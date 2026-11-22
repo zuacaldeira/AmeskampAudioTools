@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ameskamp Studio — Audio tools for music makers</title>
+<meta name="description" content="A small studio's worth of self-hosted audio tools: inspect metadata, identify recordings, trim silences, detect sound events.">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-card: #16161f;
+    --bg-elevated: #1c1c28;
+    --border: #2a2a3a;
+    --border-active: #4a4a6a;
+    --text-primary: #e8e8f0;
+    --text-secondary: #8888a8;
+    --text-muted: #555570;
+    --accent: #c4b5fd;
+    --accent-dim: #5b4b94;
+    --accent-glow: rgba(196, 181, 253, 0.15);
+    --accent-strong: #8b5cf6;
+    --success: #4ade80;
+    --warning: #fbbf24;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    line-height: 1.5;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(196, 181, 253, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(196, 181, 253, 0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: -20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80vw;
+    height: 60vh;
+    background: radial-gradient(ellipse at center, var(--accent-glow), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+    filter: blur(40px);
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 56px 24px 40px;
+  }
+
+  /* ===== Header / hero ===== */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 80px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .brand-icon {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #0a0a0f;
+    box-shadow: 0 0 28px var(--accent-glow);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+  }
+
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .brand-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #fff;
+  }
+
+  .brand-tagline {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.4px;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .nav-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--accent); }
+
+  .hero {
+    margin-bottom: 80px;
+    max-width: 720px;
+  }
+
+  .hero h1 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: clamp(36px, 6vw, 64px);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -1.5px;
+    margin-bottom: 24px;
+  }
+
+  .hero h1 .accent {
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .hero p {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 580px;
+    margin-bottom: 32px;
+  }
+
+  .hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .hero-meta .sep { color: var(--border-active); }
+  .hero-meta .ok { color: var(--success); }
+  .hero-meta a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--border-active);
+  }
+  .hero-meta a:hover { color: var(--accent); border-color: var(--accent-dim); }
+
+  /* ===== Tools grid ===== */
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-label::before {
+    content: '';
+    width: 24px;
+    height: 1px;
+    background: var(--accent-dim);
+  }
+
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin-bottom: 80px;
+  }
+
+  .tool {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .tool::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--accent-glow), transparent 50%);
+    opacity: 0;
+    transition: opacity 0.25s;
+    pointer-events: none;
+  }
+
+  .tool:hover {
+    border-color: var(--accent-dim);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(139, 92, 246, 0.08);
+  }
+  .tool:hover::before { opacity: 1; }
+
+  .tool.coming-soon { cursor: default; }
+  .tool.coming-soon:hover {
+    transform: none;
+    border-color: var(--border);
+    box-shadow: none;
+  }
+  .tool.coming-soon:hover::before { opacity: 0; }
+
+  .tool-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+  }
+
+  .tool-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 10px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    flex-shrink: 0;
+    transition: border-color 0.25s, background 0.25s;
+  }
+  .tool-icon svg { width: 22px; height: 22px; }
+  .tool:hover .tool-icon {
+    border-color: var(--accent-dim);
+    background: var(--accent-glow);
+  }
+
+  .tool-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.2px;
+  }
+  .tool-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .tool-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    position: relative;
+  }
+
+  .tool-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+    padding-top: 4px;
+    position: relative;
+  }
+
+  .tool-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    letter-spacing: 0.4px;
+  }
+
+  .tool-cta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: gap 0.2s;
+  }
+  .tool:hover .tool-cta { gap: 8px; }
+
+  .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .badge.soon { color: var(--warning); border: 1px solid rgba(251, 191, 36, 0.2); }
+  .badge.live { color: var(--success); border: 1px solid rgba(74, 222, 128, 0.2); }
+
+  /* ===== About / footer ===== */
+  .about {
+    border-top: 1px solid var(--border);
+    padding-top: 56px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    margin-bottom: 56px;
+  }
+  @media (max-width: 720px) {
+    .about { grid-template-columns: 1fr; gap: 24px; }
+    .nav-links { gap: 16px; }
+  }
+
+  .about h2 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    margin-bottom: 14px;
+  }
+
+  .about p {
+    color: var(--text-secondary);
+    font-size: 15px;
+    margin-bottom: 14px;
+  }
+  .about p:last-child { margin-bottom: 0; }
+
+  .about a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid var(--accent-dim);
+  }
+  .about a:hover { color: var(--text-primary); border-color: var(--accent); }
+
+  .footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 24px 0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .footer a {
+    color: var(--text-secondary);
+    text-decoration: none;
+  }
+  .footer a:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <nav class="nav">
+    <a href="#" class="brand">
+      <span class="brand-icon">A</span>
+      <span class="brand-text">
+        <span class="brand-name">Ameskamp</span>
+        <span class="brand-tagline">/ studio</span>
+      </span>
+    </a>
+    <div class="nav-links">
+      <a href="#tools">tools</a>
+      <a href="#about">about</a>
+      <a href="https://github.com/zuacaldeira" target="_blank" rel="noopener">github</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <h1>Self-hosted <span class="accent">audio tools</span> for music makers.</h1>
+    <p>A small studio's worth of focused, command-line-friendly utilities for inspecting, identifying, trimming, and tagging audio. Open source. Run them in a browser or call them from the terminal.</p>
+    <div class="hero-meta">
+      <span><span class="ok">●</span> all systems operational</span>
+      <span class="sep">|</span>
+      <span>6 tools</span>
+      <span class="sep">|</span>
+      <span>MIT licensed</span>
+      <span class="sep">|</span>
+      <a href="https://github.com/zuacaldeira/AmeskampAudioTools" target="_blank" rel="noopener">source on github</a>
+    </div>
+  </section>
+
+  <section id="tools">
+    <div class="section-label">Tools</div>
+    <div class="tools-grid">
+
+      <a class="tool" href="https://metadata.ameskamp.studio">
+        <div class="tool-head">
+          <div class="tool-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+            </svg>
+          </div>
+          <div>
+            <div class="tool-title">Audio Metadata</div>
+            <div class="tool-sub">metadata.ameskamp.studio</div>
+          </div>
+          <span class="badge live" style="margin-left:auto">LIVE</span>
+        </div>
+        <p class="tool-desc">Inspect tags, stream info, and embedded cover art across MP3, FLAC, WAV, OGG, M4A, AIFF, and more. Surfaces ID3, MP4 atoms, BWF, iXML, and ffprobe-derived fields. Includes signal analysis: tempo, key, loudness.</p>
+        <div class="tool-foot">
+          <div class="tool-tags">
+            <span class="tag">mutagen</span>
+            <span class="tag">librosa</span>
+            <span class="tag">ffprobe</span>
+          </div>
+          <span class="tool-cta">open →</span>
+        </div>
+      </a>
+
+      <a class="tool" href="https://match.ameskamp.studio">
+        <div class="tool-head">
+          <div class="tool-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </div>
+          <div>
+            <div class="tool-title">Audio Match</div>
+            <div class="tool-sub">match.ameskamp.studio</div>
+          </div>
+          <span class="badge live" style="margin-left:auto">LIVE</span>
+        </div>
+        <p class="tool-desc">Identify a recording by acoustic fingerprint. Generates a Chromaprint fingerprint and looks it up against the AcoustID / MusicBrainz database to find title, artist, and matching releases.</p>
+        <div class="tool-foot">
+          <div class="tool-tags">
+            <span class="tag">chromaprint</span>
+            <span class="tag">acoustid</span>
+            <span class="tag">musicbrainz</span>
+          </div>
+          <span class="tool-cta">open →</span>
+        </div>
+      </a>
+
+      <a class="tool" href="https://silence.ameskamp.studio">
+        <div class="tool-head">
+          <div class="tool-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="4" y1="12" x2="20" y2="12"/>
+              <line x1="6" y1="8" x2="6" y2="16"/>
+              <line x1="10" y1="6" x2="10" y2="18"/>
+              <line x1="14" y1="8" x2="14" y2="16"/>
+              <line x1="18" y1="10" x2="18" y2="14"/>
+            </svg>
+          </div>
+          <div>
+            <div class="tool-title">Silence Trimmer</div>
+            <div class="tool-sub">silence.ameskamp.studio</div>
+          </div>
+          <span class="badge live" style="margin-left:auto">LIVE</span>
+        </div>
+        <p class="tool-desc">Cut long silences out of audio files. Configurable threshold and max-silence duration, with a segment breakdown showing exactly which gaps were removed. Re-encodes to your chosen format.</p>
+        <div class="tool-foot">
+          <div class="tool-tags">
+            <span class="tag">ffmpeg</span>
+            <span class="tag">pydub</span>
+          </div>
+          <span class="tool-cta">open →</span>
+        </div>
+      </a>
+
+      <a class="tool" href="https://events.ameskamp.studio">
+        <div class="tool-head">
+          <div class="tool-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12h3l3-8 4 16 3-8h5"/>
+            </svg>
+          </div>
+          <div>
+            <div class="tool-title">Audio Events</div>
+            <div class="tool-sub">events.ameskamp.studio</div>
+          </div>
+          <span class="badge live" style="margin-left:auto">LIVE</span>
+        </div>
+        <p class="tool-desc">Detect sound events in any audio clip — animals, weather, vehicles, glass breaking, music, gunshots, alarms — across 527 AudioSet classes using PANNs CNN14. Outputs ranked tags and per-second timelines.</p>
+        <div class="tool-foot">
+          <div class="tool-tags">
+            <span class="tag">panns</span>
+            <span class="tag">audioset</span>
+            <span class="tag">cnn14</span>
+          </div>
+          <span class="tool-cta">open →</span>
+        </div>
+      </a>
+
+      <a class="tool" href="https://similar.ameskamp.studio">
+        <div class="tool-head">
+          <div class="tool-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12c.552 0 1 .448 1 1v3a4 4 0 0 1-4 4h-3"/>
+              <path d="M3 12c-.552 0-1 .448-1 1v3a4 4 0 0 0 4 4h3"/>
+              <circle cx="12" cy="9" r="3"/>
+              <path d="M5 9a7 7 0 0 1 14 0"/>
+            </svg>
+          </div>
+          <div>
+            <div class="tool-title">Audio Similar</div>
+            <div class="tool-sub">similar.ameskamp.studio</div>
+          </div>
+          <span class="badge live" style="margin-left:auto">LIVE</span>
+        </div>
+        <p class="tool-desc">Find sounds-alike matches. Builds CLAP embeddings for a reference catalog and ranks the closest tracks to a query song by perceptual similarity — not exact-match like fingerprinting, but vibe-similar.</p>
+        <div class="tool-foot">
+          <div class="tool-tags">
+            <span class="tag">clap</span>
+            <span class="tag">embeddings</span>
+            <span class="tag">vector-search</span>
+          </div>
+          <span class="tool-cta">open →</span>
+        </div>
+      </a>
+
+      <a class="tool" href="https://discover.ameskamp.studio">
+        <div class="tool-head">
+          <div class="tool-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="currentColor" stroke="none" opacity="0.85"/>
+            </svg>
+          </div>
+          <div>
+            <div class="tool-title">Audio Discover</div>
+            <div class="tool-sub">discover.ameskamp.studio</div>
+          </div>
+          <span class="badge live" style="margin-left:auto">LIVE</span>
+        </div>
+        <p class="tool-desc">Surface what other listeners hear alongside your track. Identifies the recording via AcoustID, then taps ListenBrainz for behavior-based recommendations — "people-who-listened-also-listened" similarity over a global catalog.</p>
+        <div class="tool-foot">
+          <div class="tool-tags">
+            <span class="tag">acoustid</span>
+            <span class="tag">listenbrainz</span>
+            <span class="tag">recommendations</span>
+          </div>
+          <span class="tool-cta">open →</span>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+  <section id="about" class="about">
+    <div>
+      <h2>About</h2>
+      <p>Ameskamp Studio is a personal collection of focused audio tools. Each one solves a single, concrete problem you actually hit when working with music or sound — without the complexity of a full DAW, just enough to get the job done.</p>
+      <p>Everything is open source and runs offline. Use it in a browser, call it from the CLI, or self-host the whole catalog on your own box.</p>
+    </div>
+    <div>
+      <h2>Self-host it</h2>
+      <p>Every tool ships with a Docker image. Clone the repository, set any required API keys, and bring the whole studio up with one command.</p>
+      <p><a href="https://github.com/zuacaldeira/AmeskampAudioTools" target="_blank" rel="noopener">github.com/zuacaldeira/AmeskampAudioTools</a></p>
+    </div>
+  </section>
+
+  <footer class="footer">
+    Built by <a href="https://github.com/zuacaldeira" target="_blank" rel="noopener">Zua Caldeira</a> · MIT licensed
+  </footer>
+
+</div>
+</body>
+</html>

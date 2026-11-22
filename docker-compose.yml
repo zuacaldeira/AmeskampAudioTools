@@ -1,0 +1,96 @@
+# Ameskamp Studio - umbrella compose for the whole tool catalog.
+#
+# Brings up every tool's Flask service on a loopback host port. A
+# host-level nginx (NOT containerized — see ameskamp-studio/nginx/) is
+# expected to reverse-proxy each subdomain to the relevant port:
+#
+#   metadata.ameskamp.studio  -> 127.0.0.1:5001
+#   match.ameskamp.studio     -> 127.0.0.1:5002
+#   silence.ameskamp.studio   -> 127.0.0.1:5000
+#   events.ameskamp.studio    -> 127.0.0.1:5004  (added in audio-events dockerization)
+#   similar.ameskamp.studio   -> 127.0.0.1:5003  (added when audio-similar ships)
+#
+# Local dev: `docker compose up` then hit http://localhost:5000-5002
+# directly. Production: also run `ameskamp-studio/deploy.sh`.
+
+services:
+  audio-metadata:
+    build: ./audio-metadata
+    container_name: ameskamp-audio-metadata
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5001:5001"
+    tmpfs:
+      - /tmp:size=1G
+    environment:
+      - TMPDIR=/tmp
+
+  audio-match:
+    build: ./audio-match
+    container_name: ameskamp-audio-match
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5002:5002"
+    tmpfs:
+      - /tmp:size=1G
+    environment:
+      - TMPDIR=/tmp
+      - ACOUSTID_API_KEY=${ACOUSTID_API_KEY:-}
+
+  silence-trimmer:
+    build: ./silence-trimmer
+    container_name: ameskamp-silence-trimmer
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5000:5000"
+    tmpfs:
+      - /tmp:size=2G
+    environment:
+      - TMPDIR=/tmp
+
+  audio-events:
+    build: ./audio-events
+    container_name: ameskamp-audio-events
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5004:5004"
+    tmpfs:
+      - /tmp:size=1G
+    volumes:
+      # PANNs checkpoint cache. Survives container rebuilds so the labels
+      # CSV + Cnn14 weights aren't redownloaded on every deploy.
+      - panns-data:/home/appuser/panns_data
+    environment:
+      - TMPDIR=/tmp
+
+  audio-similar:
+    build: ./audio-similar
+    container_name: ameskamp-audio-similar
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5003:5003"
+    tmpfs:
+      - /tmp:size=1G
+    volumes:
+      # Catalog (SQLite + vectors.npy). Bind-mounted so the indexer CLI and
+      # the web service share state, and so it can be pre-built locally and
+      # copied onto the VPS.
+      - ./audio-similar/catalog:/catalog
+    environment:
+      - TMPDIR=/tmp
+      - AUDIO_SIMILAR_CATALOG=/catalog
+
+  audio-discover:
+    build: ./audio-discover
+    container_name: ameskamp-audio-discover
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5005:5005"
+    tmpfs:
+      - /tmp:size=1G
+    environment:
+      - TMPDIR=/tmp
+      - ACOUSTID_API_KEY=${ACOUSTID_API_KEY:-}
+
+volumes:
+  panns-data: {}

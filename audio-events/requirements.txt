@@ -1,0 +1,7 @@
+flask==3.1.*
+gunicorn==23.*
+panns-inference==0.1.*
+librosa==0.11.*
+numpy>=1.23
+soundfile==0.13.*
+torch==2.*
